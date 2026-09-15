@@ -182,7 +182,12 @@ export class GameClient {
     this.startLoop();
   }
 
-  public connect(faction: FactionType = 'lotito', mode: GameMode = 'tdm', roomId?: string) {
+  public connect(
+    faction: FactionType = 'lotito',
+    mode: GameMode = 'tdm',
+    roomId?: string,
+    botCount?: number
+  ) {
     this.state.faction = faction;
     this.state.mode = mode;
     this.state.flaresAvailable = faction === 'logigi' ? 2 : 0;
@@ -204,6 +209,7 @@ export class GameClient {
           mode: this.state.mode,
           faction: this.state.faction,
           playerName: this.playerName,
+          botCount: typeof botCount === 'number' ? botCount : 3,
         })
       );
     };

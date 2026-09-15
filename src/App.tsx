@@ -17,6 +17,8 @@ import { SettingsModal } from './components/SettingsModal';
 import { PlayerRosterModal } from './components/PlayerRosterModal';
 import { LandscapeEnforcer } from './components/LandscapeEnforcer';
 import { SupabaseModal } from './components/SupabaseModal';
+import { PauseModal } from './components/PauseModal';
+import { MobileControlsEditor } from './components/MobileControlsEditor';
 import { syncMatchToSupabase } from './lib/supabase';
 import {
   RankTier,
@@ -25,6 +27,7 @@ import {
   PlayerStats,
   FactionType,
   GameMode,
+  DEFAULT_MOBILE_CONTROLS,
 } from './types';
 
 export default function App() {
@@ -35,6 +38,8 @@ export default function App() {
   const [showSettings, setShowSettings] = useState<boolean>(false);
   const [showScoreboard, setShowScoreboard] = useState<boolean>(false);
   const [showSupabase, setShowSupabase] = useState<boolean>(false);
+  const [showPause, setShowPause] = useState<boolean>(false);
+  const [showControlsEditor, setShowControlsEditor] = useState<boolean>(false);
 
   // Player progression
   const [playerName, setPlayerName] = useState<string>('Specter-7');
@@ -55,6 +60,7 @@ export default function App() {
     volumeAmbient: 0.6,
     mouseSensitivity: 0.002,
     miniMapHighContrast: false,
+    mobileControls: DEFAULT_MOBILE_CONTROLS,
   });
 
   // Post match stats
@@ -134,14 +140,15 @@ export default function App() {
   const handleStartMatch = (
     faction: FactionType = 'lotito',
     mode: GameMode = 'tdm',
-    customRoom?: string
+    customRoom?: string,
+    botCount?: number
   ) => {
     soundEngine.init();
     soundEngine.resume();
     setPlayerFaction(faction);
 
     const client = getGameClient();
-    client.connect(faction, mode, customRoom);
+    client.connect(faction, mode, customRoom, botCount);
     matchStartTimeRef.current = Date.now();
 
     setMatchStats({
@@ -162,6 +169,8 @@ export default function App() {
     });
 
     setShowScoreboard(false);
+    setShowPause(false);
+    setShowControlsEditor(false);
     setCurrentView('match');
 
     if (!isMobile && matchContainerRef.current) {
@@ -172,6 +181,33 @@ export default function App() {
           // Ignored
         }
       }, 100);
+    }
+  };
+
+  // Leave active match and return to menu
+  const handleLeaveMatch = () => {
+    if (document.pointerLockElement) {
+      document.exitPointerLock();
+    }
+    const client = gameClientRef.current;
+    if (client) {
+      client.disconnect();
+    }
+    setShowPause(false);
+    setShowScoreboard(false);
+    setShowControlsEditor(false);
+    setCurrentView('lobby');
+  };
+
+  // Resume active match from pause menu
+  const handleResumeMatch = () => {
+    setShowPause(false);
+    if (!isMobile && matchContainerRef.current) {
+      try {
+        matchContainerRef.current.requestPointerLock?.();
+      } catch {
+        // Ignored
+      }
     }
   };
 
@@ -271,8 +307,13 @@ export default function App() {
       } else if (e.code === 'Escape') {
         if (showScoreboard) {
           setShowScoreboard(false);
+        } else if (showControlsEditor) {
+          setShowControlsEditor(false);
         } else {
-          handleMatchEnd(false);
+          if (document.pointerLockElement) {
+            document.exitPointerLock();
+          }
+          setShowPause((prev) => !prev);
         }
       }
     };
@@ -335,7 +376,7 @@ export default function App() {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('contextmenu', handleContextMenu);
     };
-  }, [currentView, isMobile, settings.mouseSensitivity, showScoreboard]);
+  }, [currentView, isMobile, settings.mouseSensitivity, showScoreboard, showPause, showControlsEditor]);
 
   const client = gameClientRef.current;
   const currentGameState: ClientGameState = client?.state || {
@@ -446,7 +487,9 @@ export default function App() {
           playerXp={playerXp}
           playerTitle={playerTitle}
           onSelectTitle={setPlayerTitle}
-          onStartMatch={(mode, room) => handleStartMatch(playerFaction, mode as GameMode, room)}
+          onStartMatch={(mode, room, botCount) =>
+            handleStartMatch(playerFaction, mode as GameMode, room, botCount)
+          }
           onStartOnboarding={() => setCurrentView('onboarding')}
           onOpenSettings={() => setShowSettings(true)}
           onOpenSupabase={() => setShowSupabase(true)}
@@ -500,6 +543,41 @@ export default function App() {
             onUseUltimate={() => client?.useUltimate()}
             onStartScavengeCache={(id) => client?.startScavengeCache(id)}
             onCancelScavengeCache={() => client?.cancelScavengeCache()}
+            onPauseMatch={() => {
+              if (document.pointerLockElement) {
+                document.exitPointerLock();
+              }
+              setShowPause(true);
+            }}
+            onOpenControlsEditor={() => setShowControlsEditor(true)}
+            onMobileMoveChange={(dx, dy, isSprint) => {
+              if (!client) return;
+              if (dy < -0.25) {
+                client.setKey('KeyW', true);
+                client.setKey('KeyS', false);
+              } else if (dy > 0.25) {
+                client.setKey('KeyS', true);
+                client.setKey('KeyW', false);
+              } else {
+                client.setKey('KeyW', false);
+                client.setKey('KeyS', false);
+              }
+              if (dx > 0.25) {
+                client.setKey('KeyD', true);
+                client.setKey('KeyA', false);
+              } else if (dx < -0.25) {
+                client.setKey('KeyA', true);
+                client.setKey('KeyD', false);
+              } else {
+                client.setKey('KeyA', false);
+                client.setKey('KeyD', false);
+              }
+              client.setKey('ShiftLeft', isSprint);
+            }}
+            onMobileLookDelta={(deltaYaw) => {
+              if (!client) return;
+              client.addMouseDelta(deltaYaw * 900, 0, settings.mouseSensitivity || 0.002);
+            }}
             settings={settings}
             isMobile={isMobile}
           />
@@ -512,13 +590,18 @@ export default function App() {
             />
           )}
 
-          {/* Quick Exit Button */}
+          {/* Quick Exit / Menu Button */}
           <div className="absolute top-3 left-1/2 transform -translate-x-1/2 z-20 pointer-events-auto">
             <button
-              onClick={() => handleMatchEnd(false)}
-              className="px-2.5 py-0.5 rounded text-[10px] font-mono text-zinc-500 hover:text-zinc-300 bg-zinc-950/80 border border-zinc-800 transition-colors"
+              onClick={() => {
+                if (document.pointerLockElement) {
+                  document.exitPointerLock();
+                }
+                setShowPause(true);
+              }}
+              className="px-2.5 py-0.5 rounded text-[10px] font-mono text-zinc-400 hover:text-zinc-100 bg-zinc-950/90 border border-zinc-800 hover:border-zinc-600 transition-colors shadow-sm"
             >
-              [ESC] Leave Match
+              [ESC] Menu / Leave Game
             </button>
           </div>
         </div>
@@ -543,6 +626,7 @@ export default function App() {
           settings={settings}
           onUpdateSettings={setSettings}
           onClose={() => setShowSettings(false)}
+          onOpenMobileControlsEditor={() => setShowControlsEditor(true)}
         />
       )}
 
@@ -553,6 +637,39 @@ export default function App() {
         playerId={'player_' + playerName.toLowerCase().replace(/[^a-z0-9]/g, '')}
         playerName={playerName}
       />
+
+      {/* 6. In-Game Pause & Leave Match Modal */}
+      {showPause && (
+        <PauseModal
+          mode={currentGameState.mode}
+          isMobile={isMobile}
+          onResume={handleResumeMatch}
+          onLeaveMatch={handleLeaveMatch}
+          onOpenSettings={() => {
+            setShowPause(false);
+            setShowSettings(true);
+          }}
+          onOpenControlsEditor={() => {
+            setShowPause(false);
+            setShowControlsEditor(true);
+          }}
+        />
+      )}
+
+      {/* 7. Mobile Controls Drag & Drop Layout Customizer */}
+      {showControlsEditor && (
+        <MobileControlsEditor
+          currentConfig={settings.mobileControls || DEFAULT_MOBILE_CONTROLS}
+          onSaveConfig={(newConfig) => {
+            setSettings((prev) => ({
+              ...prev,
+              mobileControls: newConfig,
+            }));
+            setShowControlsEditor(false);
+          }}
+          onClose={() => setShowControlsEditor(false)}
+        />
+      )}
 
       {/* Mobile Landscape Orientation Lock & Rotator */}
       <LandscapeEnforcer />

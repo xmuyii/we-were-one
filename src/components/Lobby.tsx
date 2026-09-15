@@ -26,7 +26,11 @@ interface LobbyProps {
   playerXp: number;
   playerTitle: string;
   onSelectTitle: (title: string) => void;
-  onStartMatch: (mode: 'solo' | 'ranked' | 'duo' | 'practice', customRoom?: string) => void;
+  onStartMatch: (
+    mode: 'solo' | 'ranked' | 'duo' | 'practice',
+    customRoom?: string,
+    botCount?: number
+  ) => void;
   onStartOnboarding: () => void;
   onOpenSettings: () => void;
   onOpenSupabase?: () => void;
@@ -47,14 +51,28 @@ export const Lobby: React.FC<LobbyProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'deploy' | 'leaderboards' | 'ranks' | 'titles'>('deploy');
   const [leaderboardTab, setLeaderboardTab] = useState<'daily' | 'weekly' | 'legendary'>('daily');
+  const [practiceBots, setPracticeBots] = useState<number>(3);
   const [leaderboards, setLeaderboards] = useState<{
     daily: LeaderboardEntry[];
     weekly: LeaderboardEntry[];
     legendary: LeaderboardEntry[];
   }>({
-    daily: [],
-    weekly: [],
-    legendary: [],
+    daily: [
+      { id: 'usr_h1', name: 'ApexStalker', rank: 'Eclipse', title: 'One Shot', kills: 48, accuracy: 89, instinctRating: 94 },
+      { id: 'usr_h2', name: 'ViperPrime', rank: 'Nightfall', title: 'Ghost', kills: 41, accuracy: 82, instinctRating: 91 },
+      { id: 'usr_h3', name: 'ZeroLatency', rank: 'Revenant', title: 'Patient', kills: 36, accuracy: 78, instinctRating: 88 },
+      { id: 'usr_h4', name: 'SilentShadow', rank: 'Revenant', title: 'Opportunist', kills: 32, accuracy: 75, instinctRating: 86 },
+    ],
+    weekly: [
+      { id: 'usr_w1', name: 'ApexStalker', rank: 'Eclipse', title: 'One Shot', kills: 215, accuracy: 88, instinctRating: 95 },
+      { id: 'usr_w2', name: 'KiloStrike', rank: 'Eclipse', title: 'Ghost', kills: 198, accuracy: 84, instinctRating: 92 },
+      { id: 'usr_w3', name: 'ViperPrime', rank: 'Nightfall', title: 'Last Breath', kills: 172, accuracy: 81, instinctRating: 90 },
+    ],
+    legendary: [
+      { id: 'usr_l1', name: 'NightHunter_X', rank: 'Eclipse', title: 'One Shot', kills: 1420, accuracy: 91, instinctRating: 98 },
+      { id: 'usr_l2', name: 'ApexStalker', rank: 'Eclipse', title: 'Ghost', kills: 1290, accuracy: 89, instinctRating: 96 },
+      { id: 'usr_l3', name: 'KiloStrike', rank: 'Eclipse', title: 'Patient', kills: 1150, accuracy: 85, instinctRating: 93 },
+    ],
   });
   const [customRoomCode, setCustomRoomCode] = useState<string>('');
 
@@ -63,12 +81,28 @@ export const Lobby: React.FC<LobbyProps> = ({
     fetch('/api/leaderboards')
       .then((res) => res.json())
       .then((data) => {
-        if (data) setLeaderboards(data);
+        if (data && data.daily) setLeaderboards(data);
       })
       .catch(() => {
         // Fallback
       });
   }, []);
+
+  const BOT_FILTER_LIST = new Set([
+    'wraith-9',
+    'phantom-04',
+    'specter-x',
+    'echo-zero',
+    'shade-k',
+    'raven-7',
+  ]);
+
+  const isNotBot = (name: string): boolean => {
+    if (!name) return false;
+    const lower = name.toLowerCase().trim();
+    if (lower.startsWith('bot_')) return false;
+    return !BOT_FILTER_LIST.has(lower);
+  };
 
   const ranksList: { rank: RankTier; xp: number; unlock: string }[] = [
     { rank: 'Whisper', xp: 0, unlock: 'Basic sniper, Pulse echolocation' },
@@ -224,21 +258,21 @@ export const Lobby: React.FC<LobbyProps> = ({
       <div className="flex-1 py-4">
         {/* TAB 1: DEPLOY MODES */}
         {activeTab === 'deploy' && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-5xl">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 max-w-7xl">
             {/* Solo Hunt */}
-            <div className="flex flex-col justify-between p-6 rounded-lg bg-zinc-950 border border-zinc-800 hover:border-sky-500/50 transition-all group">
+            <div className="flex flex-col justify-between p-5 rounded-lg bg-zinc-950 border border-zinc-800 hover:border-sky-500/50 transition-all group">
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <span className="px-2 py-0.5 rounded text-[10px] font-mono tracking-widest bg-sky-950 text-sky-300 border border-sky-800">
-                    CORE MODE
+                    CORE FFA
                   </span>
                   <Radio className="w-4 h-4 text-zinc-500 group-hover:text-sky-400 transition-colors" />
                 </div>
-                <h3 className="text-lg font-mono font-bold text-zinc-100 group-hover:text-sky-300 transition-colors">
-                  SOLO HUNT (FFA)
+                <h3 className="text-base font-mono font-bold text-zinc-100 group-hover:text-sky-300 transition-colors">
+                  SOLO HUNT
                 </h3>
                 <p className="text-xs font-mono text-zinc-400 leading-relaxed mt-2">
-                  Drop into absolute blackness. 6 shadows stalk the map. Single-shot sniper rifle, 3 rounds in mag, pulse echolocation, collapsing zone. Last shadow standing wins.
+                  Drop into pure blackness against other operatives. Single-shot sniper, 3-round mag, pulse echolocation, collapsing zone. Pure human stealth.
                 </p>
               </div>
 
@@ -251,8 +285,58 @@ export const Lobby: React.FC<LobbyProps> = ({
               </button>
             </div>
 
+            {/* Darkness Practice Mode (FFA With Respawns) */}
+            <div className="flex flex-col justify-between p-5 rounded-lg bg-zinc-950 border border-emerald-900/60 hover:border-emerald-500/60 transition-all group">
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <span className="px-2 py-0.5 rounded text-[10px] font-mono tracking-widest bg-emerald-950 text-emerald-300 border border-emerald-800">
+                    TRAINING (FFA)
+                  </span>
+                  <Crosshair className="w-4 h-4 text-emerald-400 group-hover:text-emerald-300 transition-colors" />
+                </div>
+                <h3 className="text-base font-mono font-bold text-emerald-200 group-hover:text-emerald-300 transition-colors">
+                  DARKNESS PRACTICE
+                </h3>
+                <p className="text-xs font-mono text-zinc-400 leading-relaxed mt-2">
+                  Practice in pitch darkness first! Continuous FFA with instant respawn (2.5s). Calibrate sound cues, radar pulses, and flick shots against bots.
+                </p>
+
+                {/* Bot Count Selector */}
+                <div className="mt-4 p-3 bg-zinc-900/80 rounded border border-zinc-800">
+                  <div className="flex items-center justify-between text-xs font-mono text-zinc-300 mb-2">
+                    <span className="text-zinc-400">Target Bots:</span>
+                    <span className="font-bold text-emerald-400">{practiceBots} Bots</span>
+                  </div>
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {[1, 2, 4, 6].map((num) => (
+                      <button
+                        key={num}
+                        type="button"
+                        onClick={() => setPracticeBots(num)}
+                        className={`py-1 rounded text-xs font-mono transition-all ${
+                          practiceBots === num
+                            ? 'bg-emerald-600 text-white font-bold shadow-[0_0_8px_rgba(16,185,129,0.4)]'
+                            : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200'
+                        }`}
+                      >
+                        {num}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={() => onStartMatch('practice', undefined, practiceBots)}
+                className="mt-5 w-full py-3 rounded bg-emerald-950 hover:bg-emerald-900 border border-emerald-700 hover:border-emerald-500 text-emerald-200 font-mono text-xs font-bold tracking-widest uppercase flex items-center justify-center gap-2 group-hover:shadow-[0_0_15px_rgba(16,185,129,0.25)] transition-all"
+              >
+                <span>ENTER PRACTICE</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+
             {/* Ranked Solo */}
-            <div className="flex flex-col justify-between p-6 rounded-lg bg-zinc-950 border border-zinc-800 hover:border-amber-500/50 transition-all group">
+            <div className="flex flex-col justify-between p-5 rounded-lg bg-zinc-950 border border-zinc-800 hover:border-amber-500/50 transition-all group">
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <span className="px-2 py-0.5 rounded text-[10px] font-mono tracking-widest bg-amber-950 text-amber-300 border border-amber-800">
@@ -260,7 +344,7 @@ export const Lobby: React.FC<LobbyProps> = ({
                   </span>
                   <Trophy className="w-4 h-4 text-zinc-500 group-hover:text-amber-400 transition-colors" />
                 </div>
-                <h3 className="text-lg font-mono font-bold text-zinc-100 group-hover:text-amber-300 transition-colors">
+                <h3 className="text-base font-mono font-bold text-zinc-100 group-hover:text-amber-300 transition-colors">
                   RANKED SOLO
                 </h3>
                 <p className="text-xs font-mono text-zinc-400 leading-relaxed mt-2">
@@ -277,17 +361,20 @@ export const Lobby: React.FC<LobbyProps> = ({
               </button>
             </div>
 
-            {/* Calibration / Tutorial & Custom Room */}
-            <div className="flex flex-col justify-between p-6 rounded-lg bg-zinc-950 border border-zinc-800">
+            {/* Wireframe Tutorial & Custom Room */}
+            <div className="flex flex-col justify-between p-5 rounded-lg bg-zinc-950 border border-zinc-800 hover:border-sky-500/40 transition-all">
               <div>
-                <span className="px-2 py-0.5 rounded text-[10px] font-mono tracking-widest bg-zinc-900 text-zinc-400 border border-zinc-800">
-                  TRAINING & PRIVATE
-                </span>
-                <h3 className="text-lg font-mono font-bold text-zinc-100 mt-3">
-                  PRACTICE & ROOMS
+                <div className="flex items-center justify-between mb-3">
+                  <span className="px-2 py-0.5 rounded text-[10px] font-mono tracking-widest bg-sky-950 text-sky-400 border border-sky-800">
+                    ACADEMY
+                  </span>
+                  <Sparkles className="w-4 h-4 text-amber-400" />
+                </div>
+                <h3 className="text-base font-mono font-bold text-zinc-100">
+                  WIREFRAME TUTORIAL
                 </h3>
                 <p className="text-xs font-mono text-zinc-400 leading-relaxed mt-2">
-                  Calibrate your headphones and practice HRTF binaural sound localization, pulse echolocation, and staged bolt-action reload cancels.
+                  See the room in holographic acoustic wireframe while mastering pulse radar, binaural acoustics, sound occlusion, and tactical reload stages.
                 </p>
 
                 <div className="mt-4 flex flex-col gap-2">
@@ -295,7 +382,7 @@ export const Lobby: React.FC<LobbyProps> = ({
                     type="text"
                     value={customRoomCode}
                     onChange={(e) => setCustomRoomCode(e.target.value)}
-                    placeholder="Custom Room Code (Optional)"
+                    placeholder="Custom Room Code"
                     className="w-full px-3 py-2 bg-zinc-900 border border-zinc-800 rounded font-mono text-xs text-zinc-200 focus:outline-none focus:border-zinc-600"
                   />
                   {customRoomCode && (
@@ -311,9 +398,9 @@ export const Lobby: React.FC<LobbyProps> = ({
 
               <button
                 onClick={onStartOnboarding}
-                className="mt-6 w-full py-3 rounded bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 font-mono text-xs font-bold tracking-widest uppercase flex items-center justify-center gap-2 transition-all"
+                className="mt-5 w-full py-3 rounded bg-zinc-900 hover:bg-zinc-800 border border-amber-600/60 hover:border-amber-500 text-amber-300 font-mono text-xs font-bold tracking-widest uppercase flex items-center justify-center gap-2 transition-all shadow-[0_0_12px_rgba(251,191,36,0.15)]"
               >
-                <span>START TUTORIAL</span>
+                <span>PLAY TUTORIAL</span>
                 <Sparkles className="w-4 h-4 text-amber-400" />
               </button>
             </div>
@@ -370,7 +457,9 @@ export const Lobby: React.FC<LobbyProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-900">
-                  {(leaderboards[leaderboardTab] || []).map((entry, idx) => (
+                  {(leaderboards[leaderboardTab] || [])
+                    .filter((entry) => isNotBot(entry.name))
+                    .map((entry, idx) => (
                     <tr key={entry.id} className="hover:bg-zinc-900/40">
                       <td className="p-3 text-zinc-500">#{idx + 1}</td>
                       <td className="p-3 font-bold text-zinc-200">{entry.name}</td>

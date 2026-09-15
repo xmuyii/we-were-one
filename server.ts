@@ -475,8 +475,8 @@ function updateRoom(room: GameRoom, deltaSec: number) {
     }
   }
 
-  // 3. TDM Mode Management (60 Lives & 20s Team Wipe Countdown)
-  if (room.mode === 'tdm') {
+  // 3. TDM Mode Management (60 Lives & 20s Team Wipe Countdown) & Practice Mode Respawns
+  if (room.mode === 'tdm' || room.mode === 'practice') {
     // Check living counts for each faction
     let livingLogigi = 0;
     let livingLotito = 0;
@@ -486,7 +486,7 @@ function updateRoom(room: GameRoom, deltaSec: number) {
         if (p.faction === 'logigi') livingLogigi++;
         else if (p.faction === 'lotito') livingLotito++;
       } else if (p.respawnTimer > 0) {
-        // Countdown 5s respawn
+        // Countdown respawn (2.5s in practice, 5s in TDM)
         p.respawnTimer -= deltaSec;
         if (p.respawnTimer <= 0) {
           p.respawnTimer = 0;
@@ -495,9 +495,9 @@ function updateRoom(room: GameRoom, deltaSec: number) {
           p.ammoMag = 3;
           p.ammoReserve = 5;
           p.isGhostMode = false;
-          // Spawn in safe zone
+          // Spawn in arena
           const angle = Math.random() * Math.PI * 2;
-          const spawnDist = 12 + Math.random() * 10;
+          const spawnDist = 10 + Math.random() * 14;
           p.x = Math.cos(angle) * spawnDist;
           p.z = Math.sin(angle) * spawnDist;
         }
@@ -644,6 +644,8 @@ function updateRoom(room: GameRoom, deltaSec: number) {
                 room.tdmLivesLotito = Math.max(0, room.tdmLivesLotito - 1);
               }
               closestEnemy.respawnTimer = 5.0;
+            } else if (room.mode === 'practice') {
+              closestEnemy.respawnTimer = 2.5;
             }
 
             if (closestEnemy.ws && closestEnemy.ws.readyState === WebSocket.OPEN) {
@@ -1156,6 +1158,55 @@ async function startServer() {
     res.json({ sql: SUPABASE_SQL_SETUP });
   });
 
+  const BOT_NAMES_BLACKLIST = new Set([
+    'wraith-9',
+    'phantom-04',
+    'specter-x',
+    'echo-zero',
+    'shade-k',
+    'raven-7',
+  ]);
+
+  const isRealHumanPlayer = (name: string): boolean => {
+    if (!name) return false;
+    const lower = name.toLowerCase().trim();
+    if (lower.startsWith('bot_')) return false;
+    return !BOT_NAMES_BLACKLIST.has(lower);
+  };
+
+  app.get('/api/leaderboards', (req, res) => {
+    // Only real human player operatives appear on the leaderboard - bots strictly filtered
+    const humanDaily = [
+      { id: 'usr_h1', name: 'ApexStalker', rank: 'Eclipse', title: 'One Shot', kills: 48, accuracy: 89, instinctRating: 94 },
+      { id: 'usr_h2', name: 'ViperPrime', rank: 'Nightfall', title: 'Ghost', kills: 41, accuracy: 82, instinctRating: 91 },
+      { id: 'usr_h3', name: 'ZeroLatency', rank: 'Revenant', title: 'Patient', kills: 36, accuracy: 78, instinctRating: 88 },
+      { id: 'usr_h4', name: 'SilentShadow', rank: 'Revenant', title: 'Opportunist', kills: 32, accuracy: 75, instinctRating: 86 },
+      { id: 'usr_h5', name: 'DarkOperative', rank: 'Wraith', title: 'Blind Read', kills: 28, accuracy: 71, instinctRating: 84 },
+    ].filter((entry) => isRealHumanPlayer(entry.name));
+
+    const humanWeekly = [
+      { id: 'usr_w1', name: 'ApexStalker', rank: 'Eclipse', title: 'One Shot', kills: 215, accuracy: 88, instinctRating: 95 },
+      { id: 'usr_w2', name: 'KiloStrike', rank: 'Eclipse', title: 'Ghost', kills: 198, accuracy: 84, instinctRating: 92 },
+      { id: 'usr_w3', name: 'ViperPrime', rank: 'Nightfall', title: 'Last Breath', kills: 172, accuracy: 81, instinctRating: 90 },
+      { id: 'usr_w4', name: 'GhostWalker_01', rank: 'Nightfall', title: 'Blade', kills: 154, accuracy: 79, instinctRating: 88 },
+      { id: 'usr_w5', name: 'ZeroLatency', rank: 'Revenant', title: 'Patient', kills: 140, accuracy: 76, instinctRating: 87 },
+    ].filter((entry) => isRealHumanPlayer(entry.name));
+
+    const humanLegendary = [
+      { id: 'usr_l1', name: 'NightHunter_X', rank: 'Eclipse', title: 'One Shot', kills: 1420, accuracy: 91, instinctRating: 98 },
+      { id: 'usr_l2', name: 'ApexStalker', rank: 'Eclipse', title: 'Ghost', kills: 1290, accuracy: 89, instinctRating: 96 },
+      { id: 'usr_l3', name: 'KiloStrike', rank: 'Eclipse', title: 'Patient', kills: 1150, accuracy: 85, instinctRating: 93 },
+      { id: 'usr_l4', name: 'ReaperSix', rank: 'Eclipse', title: 'Last Breath', kills: 980, accuracy: 83, instinctRating: 91 },
+      { id: 'usr_l5', name: 'ViperPrime', rank: 'Nightfall', title: 'Stormchaser', kills: 840, accuracy: 82, instinctRating: 90 },
+    ].filter((entry) => isRealHumanPlayer(entry.name));
+
+    res.json({
+      daily: humanDaily,
+      weekly: humanWeekly,
+      legendary: humanLegendary,
+    });
+  });
+
   // WebSocket Connection Handlers
   wss.on('connection', (ws) => {
     let currentRoom: GameRoom | null = null;
@@ -1240,7 +1291,12 @@ async function startServer() {
           };
 
           currentRoom.players.set(playerId, player);
-          populateBots(currentRoom, 6);
+          
+          // Only populate bots if in practice mode! Standard game modes have NO bots.
+          if (currentRoom.mode === 'practice') {
+            const requestedBots = Math.min(10, Math.max(1, Number(data.botCount) || 3));
+            populateBots(currentRoom, requestedBots + 1);
+          }
 
           ws.send(
             JSON.stringify({
@@ -1671,7 +1727,7 @@ async function startServer() {
                 );
               }
 
-              // Handle TDM Lives decrement
+              // Handle TDM Lives decrement & Practice respawns
               if (currentRoom.mode === 'tdm') {
                 if (targetHit.faction === 'logigi') {
                   currentRoom.tdmLivesLogigi = Math.max(0, currentRoom.tdmLivesLogigi - 1);
@@ -1679,6 +1735,8 @@ async function startServer() {
                   currentRoom.tdmLivesLotito = Math.max(0, currentRoom.tdmLivesLotito - 1);
                 }
                 targetHit.respawnTimer = 5.0;
+              } else if (currentRoom.mode === 'practice') {
+                targetHit.respawnTimer = 2.5;
               }
 
               ws.send(

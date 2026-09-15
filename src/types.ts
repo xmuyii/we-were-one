@@ -219,6 +219,80 @@ export interface LeaderboardEntry {
   score: number;
 }
 
+export interface ControlPosition {
+  x: number; // percentage from left (0 - 100)
+  y: number; // percentage from top (0 - 100)
+  size?: number; // size in px
+}
+
+export interface MobileControlsConfig {
+  preset: 'default' | 'claw' | 'lefty' | 'compact' | 'custom';
+  buttonScale: number; // 0.8 to 1.3
+  buttonOpacity: number; // 0.4 to 1.0
+  showVisualJoystick: boolean;
+  hapticOnPress: boolean;
+  joystickPos: ControlPosition;
+  firePos: ControlPosition;
+  adsPos: ControlPosition;
+  pulsePos: ControlPosition;
+  crouchPos: ControlPosition;
+  reloadPos: ControlPosition;
+  meleePos: ControlPosition;
+  flarePos: ControlPosition;
+  abilityPos: ControlPosition;
+}
+
+export const DEFAULT_MOBILE_CONTROLS: MobileControlsConfig = {
+  preset: 'default',
+  buttonScale: 1.0,
+  buttonOpacity: 0.85,
+  showVisualJoystick: true,
+  hapticOnPress: true,
+  joystickPos: { x: 14, y: 72, size: 120 },
+  firePos: { x: 86, y: 72, size: 76 },
+  adsPos: { x: 74, y: 58, size: 64 },
+  pulsePos: { x: 88, y: 44, size: 68 },
+  crouchPos: { x: 14, y: 42, size: 54 },
+  reloadPos: { x: 74, y: 80, size: 54 },
+  meleePos: { x: 60, y: 82, size: 50 },
+  flarePos: { x: 74, y: 38, size: 50 },
+  abilityPos: { x: 60, y: 42, size: 50 },
+};
+
+export const CLAW_MOBILE_CONTROLS: MobileControlsConfig = {
+  preset: 'claw',
+  buttonScale: 1.0,
+  buttonOpacity: 0.85,
+  showVisualJoystick: true,
+  hapticOnPress: true,
+  joystickPos: { x: 14, y: 75, size: 120 },
+  firePos: { x: 88, y: 22, size: 80 }, // top-right trigger for index finger
+  adsPos: { x: 84, y: 68, size: 70 },
+  pulsePos: { x: 88, y: 46, size: 68 },
+  crouchPos: { x: 14, y: 45, size: 54 },
+  reloadPos: { x: 72, y: 82, size: 54 },
+  meleePos: { x: 58, y: 82, size: 50 },
+  flarePos: { x: 72, y: 42, size: 50 },
+  abilityPos: { x: 58, y: 44, size: 50 },
+};
+
+export const LEFTY_MOBILE_CONTROLS: MobileControlsConfig = {
+  preset: 'lefty',
+  buttonScale: 1.0,
+  buttonOpacity: 0.85,
+  showVisualJoystick: true,
+  hapticOnPress: true,
+  joystickPos: { x: 86, y: 72, size: 120 }, // joystick on right
+  firePos: { x: 14, y: 72, size: 76 }, // fire on left
+  adsPos: { x: 26, y: 58, size: 64 },
+  pulsePos: { x: 12, y: 44, size: 68 },
+  crouchPos: { x: 86, y: 42, size: 54 },
+  reloadPos: { x: 26, y: 80, size: 54 },
+  meleePos: { x: 40, y: 82, size: 50 },
+  flarePos: { x: 26, y: 38, size: 50 },
+  abilityPos: { x: 40, y: 42, size: 50 },
+};
+
 export interface AccessibilitySettings {
   monoAudio: boolean;
   visualAudioCues: boolean; // edge glows and subtitles for deaf/hard-of-hearing
@@ -230,6 +304,7 @@ export interface AccessibilitySettings {
   volumeAmbient: number;
   mouseSensitivity: number;
   miniMapHighContrast: boolean;
+  mobileControls?: MobileControlsConfig;
 }
 
 export interface MatchPlayerInfo {

@@ -9,6 +9,7 @@ import { MiniMap } from './MiniMap';
 import { PulseRadar } from './PulseRadar';
 import { WeaponView } from './WeaponView';
 import { MuzzleProgressionModal } from './MuzzleProgressionModal';
+import { TouchControls } from './TouchControls';
 import {
   Radio,
   Skull,
@@ -26,6 +27,8 @@ import {
   Bomb,
   Radar,
   Sliders,
+  Menu,
+  LogOut,
 } from 'lucide-react';
 
 interface HUDProps {
@@ -51,6 +54,10 @@ interface HUDProps {
   onUseUltimate: () => void;
   onStartScavengeCache: (id: string) => void;
   onCancelScavengeCache: () => void;
+  onPauseMatch?: () => void;
+  onOpenControlsEditor?: () => void;
+  onMobileMoveChange?: (dx: number, dy: number, isSprint: boolean) => void;
+  onMobileLookDelta?: (deltaYaw: number) => void;
   settings: AccessibilitySettings;
   isMobile: boolean;
 }
@@ -78,6 +85,10 @@ export const HUD: React.FC<HUDProps> = ({
   onUseUltimate,
   onStartScavengeCache,
   onCancelScavengeCache,
+  onPauseMatch,
+  onOpenControlsEditor,
+  onMobileMoveChange,
+  onMobileLookDelta,
   settings,
   isMobile,
 }) => {
@@ -229,15 +240,37 @@ export const HUD: React.FC<HUDProps> = ({
 
         {/* Top-Right: Pulse, Muzzle & Scoreboard Tab Button */}
         <div className="flex flex-col items-end gap-2 pointer-events-auto">
-          {/* View Players / Tab Button & Muzzle Attachment Button */}
+          {/* View Players / Tab Button, Menu/Quit & Muzzle Attachment Button */}
           <div className="flex items-center gap-2">
+            {isMobile && onOpenControlsEditor && (
+              <button
+                onClick={onOpenControlsEditor}
+                className="px-2.5 py-1.5 rounded bg-sky-950/90 hover:bg-sky-900 border border-sky-600/70 text-sky-200 font-mono text-xs flex items-center gap-1.5 shadow-md active:scale-95"
+                title="Customize mobile touch controls layout"
+              >
+                <Sliders className="w-3.5 h-3.5 text-sky-400" />
+                <span>EDIT HUD</span>
+              </button>
+            )}
+
+            {onPauseMatch && (
+              <button
+                onClick={onPauseMatch}
+                className="px-2.5 py-1.5 rounded bg-zinc-900/95 hover:bg-zinc-800 border border-zinc-700 hover:border-zinc-500 text-zinc-200 hover:text-white font-mono text-xs flex items-center gap-1.5 shadow-md active:scale-95"
+                title="Pause Game & Menu / Leave [ESC]"
+              >
+                <Menu className="w-3.5 h-3.5 text-zinc-300" />
+                <span>MENU [ESC]</span>
+              </button>
+            )}
+
             <button
               onClick={() => setShowMuzzleModal(true)}
               className="px-2.5 py-1.5 rounded bg-zinc-950/90 border border-zinc-800 hover:border-amber-500/80 text-zinc-300 hover:text-amber-300 font-mono text-xs flex items-center gap-1.5 transition-all shadow-md"
               title="Weapon Attachments & Muzzle Progression [M]"
             >
               <Sliders className="w-3.5 h-3.5 text-amber-400" />
-              <span>MUZZLE [M]</span>
+              <span className="hidden sm:inline">MUZZLE [M]</span>
             </button>
 
             <button
@@ -246,7 +279,7 @@ export const HUD: React.FC<HUDProps> = ({
               title="Press TAB to view players and stats"
             >
               <Users className="w-3.5 h-3.5 text-sky-400" />
-              <span>PLAYERS [TAB]</span>
+              <span className="hidden sm:inline">PLAYERS [TAB]</span>
             </button>
           </div>
 
@@ -567,42 +600,22 @@ export const HUD: React.FC<HUDProps> = ({
         />
       </div>
 
-      {/* Mobile Touch Controls Row */}
+      {/* Mobile Touch Controls Layer */}
       {isMobile && (
-        <div className="flex items-center justify-between w-full pt-2 pointer-events-auto z-30">
-          <div className="flex items-center gap-2">
-            <button
-              onTouchStart={onFire}
-              className="w-16 h-16 rounded-full bg-rose-950 border-2 border-rose-500 text-rose-100 font-mono text-xs font-bold flex items-center justify-center shadow-lg active:scale-95"
-            >
-              FIRE
-            </button>
-            <button
-              onClick={onToggleCrouch}
-              className={`px-3 py-2 rounded text-xs font-mono border ${
-                gameState.isCrouching
-                  ? 'bg-amber-900 border-amber-500 text-amber-200'
-                  : 'bg-zinc-900 border-zinc-700 text-zinc-300'
-              }`}
-            >
-              CROUCH
-            </button>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onTouchStart={onTriggerPulse}
-              disabled={gameState.pulseCooldownRemaining > 0}
-              className={`w-16 h-16 rounded-full border font-mono text-xs font-bold flex flex-col items-center justify-center ${
-                gameState.pulseCooldownRemaining <= 0
-                  ? 'bg-sky-950 border-sky-400 text-sky-200 shadow-[0_0_15px_rgba(56,189,248,0.4)]'
-                  : 'bg-zinc-900 border-zinc-800 text-zinc-600 opacity-60'
-              }`}
-            >
-              <span>PULSE</span>
-            </button>
-          </div>
-        </div>
+        <TouchControls
+          gameState={gameState}
+          settings={settings}
+          onMoveChange={onMobileMoveChange || (() => {})}
+          onLookDelta={onMobileLookDelta || (() => {})}
+          onFire={onFire}
+          onToggleADS={onToggleHoldBreath}
+          onPulse={onTriggerPulse}
+          onToggleCrouch={onToggleCrouch}
+          onReload={onReload}
+          onMelee={onMelee}
+          onThrowFlare={onThrowFlare}
+          onActivateAbility={onActivateAbility}
+        />
       )}
     </div>
   );
