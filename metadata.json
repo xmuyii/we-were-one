@@ -1,0 +1,6 @@
+{
+  "name": "Shadow Shot",
+  "description": "A real-time multiplayer FPS where every player is blind. Navigate pitch darkness with binaural 3D audio, pulse echolocation, and sniper instinct.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
